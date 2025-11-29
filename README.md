@@ -2,7 +2,7 @@
 
 **P2P-Sharing** is a lightweight, real-time, peer-to-peer file sharing web application built using Flask and Socket.IO. It enables devices on the same network (or across networks, if hosted) to instantly share files with each other without storing them on the server. All transfers are direct, ephemeral, and streamed in real time.
 
-The goal of this project is to create an accessible, browser-based alternative to tools like SHAREit or AirDrop—simple, fast, and requiring no installation.
+The goal of this project is to create an accessible, browser-based alternative to tools like SHAREit or AirDrop simple, fast, and requiring no installation.
 
 ## ✨ Features
 
