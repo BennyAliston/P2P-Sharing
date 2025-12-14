@@ -41,7 +41,15 @@ export default defineConfig({
       '/socket.io': {
         target: 'http://localhost:5000',
         ws: true,
-        changeOrigin: true
+        changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('error', (err) => {
+            // Suppress ECONNRESET errors during development (common when Flask restarts)
+            if (err.code !== 'ECONNRESET') {
+              console.error('Proxy error:', err);
+            }
+          });
+        }
       }
     }
   },

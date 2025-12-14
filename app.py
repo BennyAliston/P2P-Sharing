@@ -12,8 +12,93 @@ import uuid
 from metadata_utils import extract_metadata
 import zipfile
 import io
+import socket
+import ipaddress
+from functools import wraps
 
 app = Flask(__name__)
+
+# Network validation utilities
+def get_server_networks():
+    """Get all local network interfaces and their network ranges."""
+    networks = []
+    try:
+        # Get all network interfaces
+        hostname = socket.gethostname()
+        # Get all IPs associated with this host
+        addrs = socket.getaddrinfo(hostname, None, socket.AF_INET)
+        
+        for addr in addrs:
+            ip = addr[4][0]
+            # Skip loopback
+            if ip.startswith('127.'):
+                continue
+            # Assume /24 subnet for typical local networks
+            # This covers most home/office networks
+            try:
+                network = ipaddress.ip_network(f"{ip}/24", strict=False)
+                networks.append(network)
+            except ValueError:
+                pass
+        
+        # Also try to get IPs directly from socket
+        try:
+            local_ip = socket.gethostbyname(hostname)
+            if not local_ip.startswith('127.'):
+                network = ipaddress.ip_network(f"{local_ip}/24", strict=False)
+                if network not in networks:
+                    networks.append(network)
+        except socket.gaierror:
+            pass
+            
+    except Exception as e:
+        print(f"Error detecting networks: {e}")
+    
+    # Always allow localhost connections
+    networks.append(ipaddress.ip_network("127.0.0.0/8"))
+    
+    return networks
+
+def get_client_ip():
+    """Get the client's IP address, handling proxies if present."""
+    # Check for forwarded headers (in case behind a proxy)
+    if request.headers.get('X-Forwarded-For'):
+        # Take the first IP in the chain (original client)
+        return request.headers.get('X-Forwarded-For').split(',')[0].strip()
+    elif request.headers.get('X-Real-IP'):
+        return request.headers.get('X-Real-IP')
+    else:
+        return request.remote_addr
+
+def is_same_network(client_ip):
+    """Check if the client IP is on the same network as the server."""
+    try:
+        client_addr = ipaddress.ip_address(client_ip)
+        server_networks = get_server_networks()
+        
+        for network in server_networks:
+            if client_addr in network:
+                return True
+        
+        return False
+    except ValueError:
+        # Invalid IP address
+        return False
+
+def require_same_network(f):
+    """Decorator to require that requests come from the same network."""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        client_ip = get_client_ip()
+        
+        if not is_same_network(client_ip):
+            return jsonify({
+                'error': 'Access denied. You must be on the same network to access this file sharing service.',
+                'your_ip': client_ip
+            }), 403
+        
+        return f(*args, **kwargs)
+    return decorated_function
 app.secret_key = os.urandom(24)
 socketio = SocketIO(app, cors_allowed_origins="*", ping_timeout=60, ping_interval=25)
 BASE_DIR = Path(__file__).resolve().parent
@@ -196,6 +281,7 @@ def resolve_file_metadata(file_id):
 
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
+@require_same_network
 def serve(path):
     if path and (FRONTEND_DIST / path).exists():
         return send_from_directory(FRONTEND_DIST, path)
@@ -213,7 +299,15 @@ def serve(path):
 
 @socketio.on('connect')
 def handle_connect():
-    print('Client connected')
+    # Validate that the client is on the same network
+    from flask import request as flask_request
+    client_ip = flask_request.remote_addr
+    
+    if not is_same_network(client_ip):
+        print(f'Connection rejected from {client_ip} - not on same network')
+        return False  # Reject the connection
+    
+    print(f'Client connected from {client_ip}')
     # Send current files to newly connected client
     for file_id, metadata in file_metadata.items():
         emit('file_available', {
@@ -277,6 +371,7 @@ def handle_file_request(data):
 
 
 @app.route('/upload', methods=['POST'])
+@require_same_network
 def upload_file():
     try:
         if 'file' not in request.files:
@@ -344,6 +439,7 @@ def upload_file():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/download/<file_id>')
+@require_same_network
 def download_file(file_id):
     try:
         metadata = resolve_file_metadata(file_id)
@@ -365,6 +461,7 @@ def download_file(file_id):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/file-info/<file_id>')
+@require_same_network
 def file_info(file_id):
     try:
         if file_id not in file_metadata:
@@ -392,6 +489,7 @@ def file_info(file_id):
 
 
 @app.route('/api/files')
+@require_same_network
 def api_files():
     try:
         files = []
@@ -413,6 +511,7 @@ def api_files():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/metadata/<file_id>')
+@require_same_network
 def get_metadata(file_id):
     try:
         metadata = resolve_file_metadata(file_id)
@@ -441,6 +540,7 @@ def get_metadata(file_id):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/preview/<file_id>')
+@require_same_network
 def preview_file(file_id):
     try:
         metadata = resolve_file_metadata(file_id)
@@ -477,6 +577,7 @@ def preview_file(file_id):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/delete/<file_id>', methods=['POST'])
+@require_same_network
 def delete_file(file_id):
     try:
         metadata = resolve_file_metadata(file_id)
@@ -500,6 +601,7 @@ def delete_file(file_id):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/download-all')
+@require_same_network
 def download_all():
     try:
         memory_file = io.BytesIO()
@@ -519,6 +621,7 @@ def download_all():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/delete-all', methods=['POST'])
+@require_same_network
 def delete_all():
     try:
         file_metadata.clear()
