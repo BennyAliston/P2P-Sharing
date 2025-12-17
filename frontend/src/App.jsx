@@ -23,6 +23,67 @@ const deviceInfo = {
   platform: navigator.platform
 };
 
+// Fun messages based on file type
+const getPlayfulMessage = (file) => {
+  const type = file.type || '';
+  const name = file.name.toLowerCase();
+
+  // Images
+  if (type.startsWith('image/')) {
+    const imageMessages = [
+      "📸 Ooh, a picture! What kind of memories are you sharing?",
+      "🖼️ Nice image! Is this a masterpiece or just a meme?",
+      "📷 Photo incoming! Screenshot or actual photography?",
+      "🎨 A visual treat! Art or chaos? We're curious!",
+    ];
+    return imageMessages[Math.floor(Math.random() * imageMessages.length)];
+  }
+
+  // Videos
+  if (type.startsWith('video/')) {
+    const videoMessages = [
+      "🎬 A video! Is this Oscar-worthy or fail compilation?",
+      "📹 Moving pictures! Memories or memes?",
+      "🎥 Video detected! TikTok-worthy content?",
+      "🍿 Grab the popcorn! What are we watching?",
+    ];
+    return videoMessages[Math.floor(Math.random() * videoMessages.length)];
+  }
+
+  // Audio
+  if (type.startsWith('audio/')) {
+    const audioMessages = [
+      "🎵 Music to our ears! What's the vibe?",
+      "🎧 Audio file! Banger or podcast?",
+      "🎤 Sounds interesting! Voice memo or sick beats?",
+    ];
+    return audioMessages[Math.floor(Math.random() * audioMessages.length)];
+  }
+
+  // PDFs and documents
+  if (type === 'application/pdf' || name.endsWith('.pdf')) {
+    return "📄 A PDF! Work stuff or something fun?";
+  }
+
+  // Archives
+  if (type.includes('zip') || type.includes('rar') || name.match(/\.(zip|rar|7z|tar|gz)$/)) {
+    return "📦 An archive! What secrets are compressed in there?";
+  }
+
+  // Code files
+  if (name.match(/\.(js|py|java|cpp|html|css|ts|jsx|tsx|go|rs|rb)$/)) {
+    return "💻 Code incoming! Building something cool?";
+  }
+
+  // Default
+  const defaultMessages = [
+    "📁 Interesting file! What's the story?",
+    "🗂️ Something new! Care to share what it is?",
+    "✨ File received! Thanks for sharing!",
+  ];
+  return defaultMessages[Math.floor(Math.random() * defaultMessages.length)];
+};
+
 const initialPreviewState = {
   open: false,
   loading: false,
@@ -496,6 +557,9 @@ function App() {
 
           completedFiles++;
           setUploadProgress(Math.round((completedFiles / totalFiles) * 100));
+
+          // Show playful message for uploaded file
+          addToast(getPlayfulMessage(file), 'info');
         } catch (error) {
           addToast(error.message, 'error');
         }
@@ -503,7 +567,7 @@ function App() {
 
       setUploadStatus('');
       setUploadProgress(0);
-      addToast('Upload complete', 'success');
+      // Playful messages are already shown per file
     },
     [addToast]
   );
