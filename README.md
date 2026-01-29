@@ -1,6 +1,6 @@
 # Ropix Share
 
-**Ropix Share** is a lightweight, real-time file sharing web application with a **Retro Pixel Art UI**. Built with **React + Vite** frontend and **Flask + Socket.IO** backend, it enables instant file sharing through shareable room codes—no installation required.
+**Ropix Share** is a lightweight, real-time file sharing web application with a **Retro Pixel Art UI**. Built with **React + Vite** frontend and **Flask + Socket.IO** backend, it enables instant file sharing through shareable room codes no installation required.
 
 ## ✨ Features
 
